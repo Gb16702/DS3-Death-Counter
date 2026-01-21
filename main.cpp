@@ -17,6 +17,9 @@ private:
     DWORD processId;
     uintptr_t moduleBase;
 
+    static constexpr uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
+    static constexpr uintptr_t DEATH_COUNT_OFFSET = 0x98;
+
 public:
     DS3MemoryReader() : processHandle(nullptr), processId(0), moduleBase(0) {}
 
@@ -44,9 +47,6 @@ public:
     }
 
     std::expected<int, DS3Error> GetDeathCount() {
-        const uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
-        const uintptr_t DEATH_COUNT_OFFSET = 0x98;
-
         uintptr_t pointerAddress = moduleBase + GAMEDATAMAN_POINTER;
 
         uintptr_t gameDataManAddress = 0;
