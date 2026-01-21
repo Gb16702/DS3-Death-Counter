@@ -42,7 +42,7 @@ public:
 
         return {};
     }
-    
+
     std::expected<int, DS3Error> GetDeathCount() {
         const uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
         const uintptr_t DEATH_COUNT_OFFSET = 0x98;
@@ -142,7 +142,7 @@ int main() {
     } else {
         switch (deathCountResult.error()) {
         case DS3Error::ReadFailed:
-            std::cout << "Error: Failed to read  death count from memory" << std::endl;
+            std::cout << "Error: Failed to read death count from memory" << std::endl;
             break;
         }
     }
