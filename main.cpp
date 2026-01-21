@@ -73,6 +73,10 @@ public:
 
     template<typename T>
     bool ReadMemory(uintptr_t address, T& value) {
+        if (!processHandle) {
+            return false;
+        }
+
         SIZE_T bytesRead;
         return ReadProcessMemory(processHandle, reinterpret_cast<LPCVOID>(address),
             &value, sizeof(T), &bytesRead) && bytesRead == sizeof(T);
