@@ -62,6 +62,9 @@ private:
 public: 
     MemoryReader() : processHandle(nullptr), processId(0), moduleBase(0) {}
 
+    MemoryReader(const MemoryReader&) = delete;
+    MemoryReader& operator=(const MemoryReader&) = delete;
+
     ~MemoryReader() {
         if (processHandle) {
             CloseHandle(processHandle);
