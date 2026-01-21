@@ -1,7 +1,13 @@
+#include "httplib.h"
+#include "json.hpp"
 #include <iostream>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <expected>
+
+using json = nlohmann::json;
+
+constexpr int SERVER_PORT = 3000;
 
 enum class MemoryReaderError {
     ProcessNotFound,
@@ -146,39 +152,58 @@ public:
     }
 };
 
+void setupRoutes(httplib::Server& server, DS3DeathCounter& counter) {
+    server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        
+        auto initializeResult = counter.Initialize();
+        if (!initializeResult) {
+            json response = {
+                {"success", false},
+                {"error", {
+                    {"code", "GAME_NOT_RUNNING"},
+                    {"message", "Make sure Dark Souls III is running"}
+                }}
+            };
+
+            res.status = 503;
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+
+        auto deathsResult = counter.GetDeathCount();
+        if (!deathsResult) {
+            json response = {
+                {"success", false},
+                {"error", {
+                    {"code", "READ_FAILED"},
+                    {"message", "Could not read game data"}
+                }}
+            };
+
+            res.status = 500;
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+
+        json response = {
+            {"success", true},
+            {"data", {
+                {"deaths", *deathsResult}
+            }}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+}
+
 int main() {
     DS3DeathCounter counter;
+    httplib::Server server;
 
-    auto initializeResult = counter.Initialize();
-    if (!initializeResult) {
-        switch (initializeResult.error()) {
-            case MemoryReaderError::ProcessNotFound:
-                std::cout << "Error: Dark Souls III not found. Make sure the game is running." << std::endl;
-                break;
-            case MemoryReaderError::AccessDenied:
-                std::cout << "Error: Cannot access process. Try running as administrator." << std::endl;
-                break;
-            case MemoryReaderError::ModuleNotFound:
-                std::cout << "Error: Cannot find game module." << std::endl;
-                break;
-        }
-
-        system("pause");
-        return 1;
-    }
-
-    auto deathCountResult = counter.GetDeathCount();
-    if (deathCountResult.has_value()) {
-        std::cout << "Deaths: " << *deathCountResult << std::endl;
-    } else {
-        switch (deathCountResult.error()) {
-        case MemoryReaderError::ReadFailed:
-            std::cout << "Error: Failed to read death count from memory" << std::endl;
-            break;
-        }
-    }
-
-    system("pause");
+    setupRoutes(server, counter);
+    std::cout << "Server running on http://localhost:" << SERVER_PORT << std::endl;
+    server.listen("localhost", SERVER_PORT);
 
     return 0;
 }
