@@ -3,68 +3,19 @@
 #include <tlhelp32.h>
 #include <expected>
 
-enum class DS3Error {
-    GameNotFound,
+enum class MemoryReaderError {
+    ProcessNotFound,
     AccessDenied,
     ModuleNotFound,
     ReadFailed
 };
 
-
-class DS3MemoryReader {
+class MemoryReader {
 private:
     HANDLE processHandle;
     DWORD processId;
     uintptr_t moduleBase;
 
-    static constexpr uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
-    static constexpr uintptr_t DEATH_COUNT_OFFSET = 0x98;
-
-public:
-    DS3MemoryReader() : processHandle(nullptr), processId(0), moduleBase(0) {}
-
-    ~DS3MemoryReader() {
-        if (processHandle) {
-            CloseHandle(processHandle);
-        }
-    }
-
-    std::expected<void, DS3Error> Initialize() {
-        if (!FindProcess(L"DarkSoulsIII.exe")) {
-            return std::unexpected(DS3Error::GameNotFound);
-        }
-
-        processHandle = OpenProcess(PROCESS_VM_READ, FALSE, processId);
-        if (!processHandle) {
-            return std::unexpected(DS3Error::AccessDenied);
-        }
-
-        if (!GetModuleBase(L"DarkSoulsIII.exe")) {
-            return std::unexpected(DS3Error::ModuleNotFound);
-        }
-
-        return {};
-    }
-
-    std::expected<int, DS3Error> GetDeathCount() {
-        uintptr_t pointerAddress = moduleBase + GAMEDATAMAN_POINTER;
-
-        uintptr_t gameDataManAddress = 0;
-        if (!ReadMemory(pointerAddress, gameDataManAddress)) {
-            return std::unexpected(DS3Error::ReadFailed);
-        }
-
-        uintptr_t deathCountAddress = gameDataManAddress + DEATH_COUNT_OFFSET;
-
-        int deathCount = 0;
-        if (!ReadMemory(deathCountAddress, deathCount)) {
-            return std::unexpected(DS3Error::ReadFailed);
-        }
-
-        return deathCount;
-    }
-
-private:
     bool FindProcess(const std::wstring& processName) {
         HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snapshot == INVALID_HANDLE_VALUE) return false;
@@ -86,7 +37,7 @@ private:
         return false;
     }
 
-    bool GetModuleBase(const std::wstring& moduleName) {
+    bool FindModuleBase(const std::wstring& moduleName) {
         HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, processId);
         if (snapshot == INVALID_HANDLE_VALUE) return false;
 
@@ -107,27 +58,91 @@ private:
         return false;
     }
 
+
+public: 
+    MemoryReader() : processHandle(nullptr), processId(0), moduleBase(0) {}
+
+    ~MemoryReader() {
+        if (processHandle) {
+            CloseHandle(processHandle);
+        }
+    }
+
     template<typename T>
     bool ReadMemory(uintptr_t address, T& value) {
         SIZE_T bytesRead;
         return ReadProcessMemory(processHandle, reinterpret_cast<LPCVOID>(address),
             &value, sizeof(T), &bytesRead) && bytesRead == sizeof(T);
     }
+
+    std::expected<void, MemoryReaderError> Initialize(const std::wstring& processName) {
+        if (!FindProcess(processName)) {
+            return std::unexpected(MemoryReaderError::ProcessNotFound);
+        }
+
+        processHandle = OpenProcess(PROCESS_VM_READ, FALSE, processId);
+        if (!processHandle) {
+            return std::unexpected(MemoryReaderError::AccessDenied);
+        }
+
+        if (!FindModuleBase(processName)) {
+            return std::unexpected(MemoryReaderError::ModuleNotFound);
+        }
+
+        return {};
+    }
+
+    uintptr_t GetModuleBase() const {
+        return moduleBase;
+    }
+};
+
+class DS3DeathCounter {
+private:
+    MemoryReader reader;
+
+    static constexpr uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
+    static constexpr uintptr_t DEATH_COUNT_OFFSET = 0x98;
+
+    static constexpr wchar_t PROCESS_NAME[] = L"DarkSoulsIII.exe";
+
+public:
+    std::expected<void, MemoryReaderError> Initialize() {
+        return reader.Initialize(PROCESS_NAME);
+    }
+
+    std::expected<int, MemoryReaderError> GetDeathCount() {
+        uintptr_t pointerAddress = reader.GetModuleBase() + GAMEDATAMAN_POINTER;
+
+        uintptr_t gameDataManAddress = 0;
+        if (!reader.ReadMemory(pointerAddress, gameDataManAddress)) {
+            return std::unexpected(MemoryReaderError::ReadFailed);
+        }
+
+        uintptr_t deathCountAddress = gameDataManAddress + DEATH_COUNT_OFFSET;
+
+        int deathCount = 0;
+        if (!reader.ReadMemory(deathCountAddress, deathCount)) {
+            return std::unexpected(MemoryReaderError::ReadFailed);
+        }
+
+        return deathCount;
+    }
 };
 
 int main() {
-    DS3MemoryReader reader;
+    DS3DeathCounter counter;
 
-    auto initializeResult = reader.Initialize();
+    auto initializeResult = counter.Initialize();
     if (!initializeResult) {
         switch (initializeResult.error()) {
-            case DS3Error::GameNotFound:
+            case MemoryReaderError::ProcessNotFound:
                 std::cout << "Error: Dark Souls III not found. Make sure the game is running." << std::endl;
                 break;
-            case DS3Error::AccessDenied:
+            case MemoryReaderError::AccessDenied:
                 std::cout << "Error: Cannot access process. Try running as administrator." << std::endl;
                 break;
-            case DS3Error::ModuleNotFound:
+            case MemoryReaderError::ModuleNotFound:
                 std::cout << "Error: Cannot find game module." << std::endl;
                 break;
         }
@@ -136,12 +151,12 @@ int main() {
         return 1;
     }
 
-    auto deathCountResult = reader.GetDeathCount();
+    auto deathCountResult = counter.GetDeathCount();
     if (deathCountResult.has_value()) {
         std::cout << "Deaths: " << *deathCountResult << std::endl;
     } else {
         switch (deathCountResult.error()) {
-        case DS3Error::ReadFailed:
+        case MemoryReaderError::ReadFailed:
             std::cout << "Error: Failed to read death count from memory" << std::endl;
             break;
         }
