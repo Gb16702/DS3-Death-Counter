@@ -11,6 +11,7 @@
 using json = nlohmann::json;
 
 constexpr const char* APP_VERSION = "1.0.0";
+constexpr const char* ALLOWED_ORIGIN = "http://localhost:5173";
 constexpr int SERVER_PORT = 3000;
 
 enum class MemoryReaderError {
@@ -158,7 +159,7 @@ public:
 
 void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono::steady_clock::time_point startTime) {
     server.Get("/health", [startTime](const httplib::Request& req, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
 
         auto now = std::chrono::steady_clock::now();
         auto uptimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
@@ -173,7 +174,7 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono:
     });
     
     server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
-        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
         
         auto initializeResult = counter.Initialize();
         if (!initializeResult) {
