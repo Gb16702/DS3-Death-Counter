@@ -79,6 +79,11 @@ public:
     }
 
     std::expected<void, MemoryReaderError> Initialize(const std::wstring& processName) {
+        if (processHandle) {
+            CloseHandle(processHandle);
+            processHandle = nullptr;
+        }
+
         if (!FindProcess(processName)) {
             return std::unexpected(MemoryReaderError::ProcessNotFound);
         }
