@@ -4,9 +4,11 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include <expected>
+#include <chrono>
 
 using json = nlohmann::json;
 
+constexpr const char* APP_VERSION = "1.0.0";
 constexpr int SERVER_PORT = 3000;
 
 enum class MemoryReaderError {
@@ -152,7 +154,22 @@ public:
     }
 };
 
-void setupRoutes(httplib::Server& server, DS3DeathCounter& counter) {
+void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono::steady_clock::time_point startTime) {
+    server.Get("/health", [startTime](const httplib::Request& req, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+
+        auto now = std::chrono::steady_clock::now();
+        auto uptimeSeconds = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+
+        json response = {
+            {"status", "ok"},
+            {"version", APP_VERSION},
+            {"uptime", uptimeSeconds}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+    
     server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
         
@@ -198,10 +215,12 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter) {
 }
 
 int main() {
+    auto startTime = std::chrono::steady_clock::now();
+
     DS3DeathCounter counter;
     httplib::Server server;
 
-    setupRoutes(server, counter);
+    setupRoutes(server, counter, startTime);
     std::cout << "Server running on http://localhost:" << SERVER_PORT << std::endl;
     server.listen("localhost", SERVER_PORT);
 
