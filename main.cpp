@@ -131,6 +131,7 @@ private:
 
     static constexpr uintptr_t GAMEDATAMAN_POINTER = 0x047572B8;
     static constexpr uintptr_t DEATH_COUNT_OFFSET = 0x98;
+    static constexpr uintptr_t PLAYTIME_OFFSET = 0xA4;
 
     static constexpr wchar_t PROCESS_NAME[] = L"DarkSoulsIII.exe";
 
@@ -164,10 +165,33 @@ public:
 
         return deathCount;
     }
+
+    std::expected<int, MemoryReaderError> GetPlayTime() {
+        uintptr_t pointerAddress = reader.GetModuleBase() + GAMEDATAMAN_POINTER;
+
+        uintptr_t gameDataManAddress = 0;
+        if (!reader.ReadMemory(pointerAddress, gameDataManAddress)) {
+            return std::unexpected(MemoryReaderError::ReadFailed);
+        }
+
+        if (gameDataManAddress == 0) {
+            return std::unexpected(MemoryReaderError::ReadFailed);
+        }
+
+        uintptr_t playTimeAddress = gameDataManAddress + PLAYTIME_OFFSET;
+
+        int playTime = 0;
+        if (!reader.ReadMemory(playTimeAddress, playTime)) {
+            return std::unexpected(MemoryReaderError::ReadFailed);
+        }
+
+        return playTime;
+    }
 };
 
 void streamStats(DS3DeathCounter& counter, httplib::DataSink& sink) {
     int lastDeathCount = -1;
+    int lastPlayTime = -1;
 
     while (true) {
         if (!counter.IsInitialized()) {
@@ -178,17 +202,26 @@ void streamStats(DS3DeathCounter& counter, httplib::DataSink& sink) {
             }
         }
 
-        auto result = counter.GetDeathCount();
+        auto deathsResult = counter.GetDeathCount();
+        auto playTimeResult = counter.GetPlayTime();
 
-        if (result && *result != lastDeathCount) {
-			lastDeathCount = *result;
+        json data;
+        bool changed = false;
 
-            json data = {
-                {"deaths", lastDeathCount}
-            };
+        if (deathsResult && *deathsResult != lastDeathCount) {
+			lastDeathCount = *deathsResult;
+            data["deaths"] = lastDeathCount;
+            changed = true;
+        }
 
-			std::string event = "data: " + data.dump() + "\n\n";
+        if (playTimeResult && *playTimeResult != lastPlayTime) {
+            lastPlayTime = *playTimeResult;
+            data["playtime"] = lastPlayTime;
+            changed = true;
+        }
 
+        if (changed) {
+            std::string event = "data: " + data.dump() + "\n\n";
             if (!sink.write(event.c_str(), event.size())) {
                 return;
             }
@@ -238,14 +271,16 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono:
         }
 
         auto deathsResult = counter.GetDeathCount();
+        auto playTimeResult = counter.GetPlayTime();
 
-        if (!deathsResult) {
+        if (!deathsResult || !playTimeResult) {
             if (counter.Initialize()) {
                 deathsResult = counter.GetDeathCount();
+                playTimeResult = counter.GetPlayTime();
             }
         }
 
-        if (!deathsResult) {
+        if (!deathsResult || !playTimeResult) {
             json response = {
                 {"success", false},
                 {"error", {
@@ -259,10 +294,12 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono:
             return;
         }
 
+
         json response = {
             {"success", true},
             {"data", {
-                {"deaths", *deathsResult}
+                {"deaths", *deathsResult},
+                {"playtime", *playTimeResult}
             }}
         };
 
