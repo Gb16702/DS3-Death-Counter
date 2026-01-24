@@ -9,6 +9,7 @@
 #include <chrono>
 #include <ctime>
 #include <expected>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -49,6 +50,48 @@ void log(LogLevel level, const std::string& message) {
 
     std::cout << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S] ") << levelStr << " " << message << std::endl;
 }
+
+struct Settings {
+    static constexpr const char* FILENAME = "settings.json";
+
+    bool isDeathCountVisible = true;
+    bool isPlaytimeVisible = true;
+    bool isDiscordRpcEnabled = true;
+
+    void LoadSettings() {
+        std::ifstream settingsFile(FILENAME);
+        if (!settingsFile) {
+            log(LogLevel::INFO, "No settings file, creating defaults");
+            SaveSettings();
+            return;
+        }
+
+        json settingsData;
+        settingsFile >> settingsData;
+
+        isDeathCountVisible = settingsData["isDeathCountVisible"];
+        isPlaytimeVisible = settingsData["isPlaytimeVisible"];
+        isDiscordRpcEnabled = settingsData["isDiscordRpcEnabled"];
+    }
+    
+    void SaveSettings() {
+        json settingsData = {
+            {"isDeathCountVisible", isDeathCountVisible},
+            {"isPlaytimeVisible", isPlaytimeVisible},
+            {"isDiscordRpcEnabled", isDiscordRpcEnabled}
+        };
+
+        std::ofstream settingsFile(FILENAME);
+        if (!settingsFile) {
+            log(LogLevel::ERR, "Failed to save settings");
+            return;
+        }
+
+        settingsFile << settingsData.dump(4);
+    }
+};
+
+Settings g_settings;
 
 class DiscordPresence {
 private:
@@ -307,6 +350,12 @@ void discordUpdateLoop() {
     int minutesSinceSync = 5;
 
     while (g_running) {
+        if (!g_settings.isDiscordRpcEnabled) {
+            Discord_ClearPresence();
+            std::this_thread::sleep_for(std::chrono::minutes(1));
+            continue;
+        }
+
         if (!statsReader.IsInitialized()) {
             if (statsReader.Initialize()) {
                 gameConnected = true;
@@ -378,13 +427,13 @@ void streamStats(DS3StatsReader& statsReader, httplib::DataSink& sink) {
         json data;
         bool changed = false;
 
-        if (deathsResult && (firstRun || *deathsResult != lastDeathCount)) {
+        if (g_settings.isDeathCountVisible && deathsResult && (firstRun || *deathsResult != lastDeathCount)) {
             lastDeathCount = *deathsResult;
             data["deaths"] = lastDeathCount;
             changed = true;
         }
 
-        if (playTimeResult && (firstRun || *playTimeResult != lastPlayTime)) {
+        if (g_settings.isPlaytimeVisible && playTimeResult && (firstRun || *playTimeResult != lastPlayTime)) {
             lastPlayTime = *playTimeResult;
             data["playtime"] = lastPlayTime;
             changed = true;
@@ -495,6 +544,8 @@ int main() {
     auto startTime = std::chrono::steady_clock::now();
 
     log(LogLevel::INFO, "Starting DS3 Stats Reader v" + std::string(APP_VERSION));
+
+    g_settings.LoadSettings();
 
     g_discord.Initialize();
 
