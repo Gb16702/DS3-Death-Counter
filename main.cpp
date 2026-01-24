@@ -71,7 +71,7 @@ public:
         Discord_Initialize(DISCORD_APP_ID, &handlers, 1, nullptr);
         startTimestamp = time(nullptr);
         initialized = true;
-        log(LogLevel::INFO, "Discord RPC initialized");
+        log(LogLevel::INFO, "Discord remote procedure call initialized");
     }
 
     void Update(uint32_t deaths, uint32_t playtimeMs) {
@@ -112,7 +112,7 @@ public:
         if (initialized) {
             Discord_Shutdown();
             initialized = false;
-            log(LogLevel::INFO, "Discord RPC shutdown");
+            log(LogLevel::INFO, "Discord remote procedure call shutdown");
         }
     }
 
