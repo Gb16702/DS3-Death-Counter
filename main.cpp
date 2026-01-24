@@ -118,6 +118,10 @@ public:
     uintptr_t GetModuleBase() const {
         return moduleBase;
     }
+
+    bool IsInitialized() const {
+        return processHandle != nullptr;
+    }
 };
 
 class DS3DeathCounter {
@@ -132,6 +136,10 @@ private:
 public:
     std::expected<void, MemoryReaderError> Initialize() {
         return reader.Initialize(PROCESS_NAME);
+    }
+
+    bool IsInitialized() const {
+        return reader.IsInitialized();
     }
 
     std::expected<int, MemoryReaderError> GetDeathCount() {
@@ -160,7 +168,7 @@ public:
 void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono::steady_clock::time_point startTime) {
     server.set_post_routing_handler([](const httplib::Request& req, httplib::Response& res) {
         auto origin = req.get_header_value("Origin");
-        if (ALLOWED_ORIGIN == origin) {
+        if (origin == ALLOWED_ORIGIN) {
             res.set_header("Access-Control-Allow-Origin", origin);
         }
     });
@@ -178,23 +186,32 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono:
         res.set_content(response.dump(), "application/json");
     });
     
-    server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {        
-        auto initializeResult = counter.Initialize();
-        if (!initializeResult) {
-            json response = {
-                {"success", false},
-                {"error", {
-                    {"code", "GAME_NOT_RUNNING"},
-                    {"message", "Make sure Dark Souls III is running"}
-                }}
-            };
+    server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
+        if (!counter.IsInitialized()) {
+            auto initializeResult = counter.Initialize();
+            if (!initializeResult) {
+                json response = {
+                    {"success", false},
+                    {"error", {
+                        {"code", "GAME_NOT_RUNNING"},
+                        {"message", "Make sure Dark Souls III is running"}
+                    }}
+                };
 
-            res.status = httplib::StatusCode::ServiceUnavailable_503;
-            res.set_content(response.dump(), "application/json");
-            return;
+                res.status = httplib::StatusCode::ServiceUnavailable_503;
+                res.set_content(response.dump(), "application/json");
+                return;
+            }
         }
 
         auto deathsResult = counter.GetDeathCount();
+
+        if (!deathsResult) {
+            if (counter.Initialize()) {
+                deathsResult = counter.GetDeathCount();
+            }
+        }
+
         if (!deathsResult) {
             json response = {
                 {"success", false},
