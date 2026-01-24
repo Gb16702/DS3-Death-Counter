@@ -7,6 +7,7 @@
 #include <chrono>
 #include <expected>
 #include <iostream>
+#include <thread>
 
 using json = nlohmann::json;
 
@@ -165,6 +166,38 @@ public:
     }
 };
 
+void streamStats(DS3DeathCounter& counter, httplib::DataSink& sink) {
+    int lastDeathCount = -1;
+
+    while (true) {
+        if (!counter.IsInitialized()) {
+            auto initResult = counter.Initialize();
+            if (!initResult) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                continue;
+            }
+        }
+
+        auto result = counter.GetDeathCount();
+
+        if (result && *result != lastDeathCount) {
+			lastDeathCount = *result;
+
+            json data = {
+                {"deaths", lastDeathCount}
+            };
+
+			std::string event = "data: " + data.dump() + "\n\n";
+
+            if (!sink.write(event.c_str(), event.size())) {
+                return;
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+}
+
 void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono::steady_clock::time_point startTime) {
     server.set_post_routing_handler([](const httplib::Request& req, httplib::Response& res) {
         auto origin = req.get_header_value("Origin");
@@ -234,6 +267,17 @@ void setupRoutes(httplib::Server& server, DS3DeathCounter& counter, std::chrono:
         };
 
         res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/stats/stream", [&counter](const httplib::Request& req, httplib::Response& res) {
+        res.set_header("Content-Type", "text/event-stream");
+        res.set_header("Cache-Control", "no-cache");
+        res.set_header("Connection", "keep-alive");
+
+        res.set_chunked_content_provider("text/event-stream", [&counter](size_t, httplib::DataSink& sink) {
+            streamStats(counter, sink);
+            return false;
+        });
     });
 }
 
