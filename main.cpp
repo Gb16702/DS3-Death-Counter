@@ -61,7 +61,7 @@ struct Settings {
     std::atomic<bool> isPlaytimeVisible = true;
     std::atomic<bool> isDiscordRpcEnabled = true;
     std::atomic<bool> isBorderlessFullscreenEnabled = false;
-
+    std::atomic<bool> isAutoStartEnabled = false;
 
     void LoadSettings() {
         std::ifstream settingsFile(FILENAME);
@@ -79,6 +79,7 @@ struct Settings {
             isPlaytimeVisible = settingsData.value("isPlaytimeVisible", true);
             isDiscordRpcEnabled = settingsData.value("isDiscordRpcEnabled", true);
             isBorderlessFullscreenEnabled = settingsData.value("isBorderlessFullscreenEnabled", false);
+            isAutoStartEnabled = settingsData.value("isAutoStartEnabled", false);
         }
         catch (...) {
             log(LogLevel::WARN, "Invalid settings.json, restoring defaults");
@@ -92,6 +93,7 @@ struct Settings {
             {"isPlaytimeVisible", isPlaytimeVisible.load()},
             {"isDiscordRpcEnabled", isDiscordRpcEnabled.load()},
             {"isBorderlessFullscreenEnabled", isBorderlessFullscreenEnabled.load()},
+            {"isAutoStartEnabled", isAutoStartEnabled.load()},
         };
 
         std::ofstream settingsFile(FILENAME);
@@ -196,6 +198,61 @@ public:
 
 BorderlessWindow g_borderlessWindow;
 
+class AutoStart {
+private:
+    static constexpr const wchar_t* RUN_KEY = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    static constexpr const wchar_t* APP_NAME = L"DS3StatsReader";
+
+public:
+    static bool Enable() {
+        wchar_t exePath[MAX_PATH];
+        if (::GetModuleFileNameW(nullptr, exePath, MAX_PATH) == 0) {
+            log(LogLevel::ERR, "Failed to get executable path");
+            return false;
+        }
+
+        HKEY hkey;
+        LONG result = ::RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &hkey);
+
+        if (result != ERROR_SUCCESS) {
+            log(LogLevel::ERR, "Failed to open registry key");
+            return false;
+        }
+
+        result = ::RegSetValueExW(hkey, APP_NAME, 0, REG_SZ, reinterpret_cast<const BYTE*>(exePath), static_cast<DWORD>((wcslen(exePath) + 1) * sizeof(wchar_t)));
+        ::RegCloseKey(hkey);
+
+        if (result != ERROR_SUCCESS) {
+            log(LogLevel::ERR, "Failed to set registry value");
+            return false;
+        }
+
+        log(LogLevel::INFO, "Auto-start enabled");
+        
+        return true;
+    }
+
+    static bool Disable() {
+        HKEY hkey;
+        LONG result = ::RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &hkey);
+
+        if (result != ERROR_SUCCESS) {
+            log(LogLevel::ERR, "Failed to open registry key");
+            return false;
+        }
+
+        result = ::RegDeleteValueW(hkey, APP_NAME);
+        ::RegCloseKey(hkey);
+
+        if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
+            log(LogLevel::ERR, "Failed to delete registry value");
+            return false;
+        }
+
+        log(LogLevel::INFO, "Auto-start disabled");
+        return true;
+    }
+};
 
 class DiscordPresence {
 private:
@@ -595,6 +652,7 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
                 {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
                 {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()},
                 {"isBorderlessFullscreenEnabled", g_settings.isBorderlessFullscreenEnabled.load()},
+                {"isAutoStartEnabled", g_settings.isAutoStartEnabled.load()},
             }}
         };
 
@@ -624,6 +682,13 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
                 enabled ? g_borderlessWindow.Enable() : g_borderlessWindow.Disable();
             }
 
+            if (body.contains("isAutoStartEnabled")) {
+                bool enabled = body["isAutoStartEnabled"];
+                g_settings.isAutoStartEnabled = enabled;
+
+                enabled ? AutoStart::Enable() : AutoStart::Disable();
+            }
+
             g_settings.SaveSettings();
             g_discordCv.notify_one();
 
@@ -634,6 +699,7 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
                     {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
                     {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()},
                     {"isBorderlessFullscreenEnabled", g_settings.isBorderlessFullscreenEnabled.load()},
+                    {"isAutoStartEnabled", g_settings.isAutoStartEnabled.load()}
                 }}
             };
 
@@ -722,6 +788,9 @@ int main() {
     log(LogLevel::INFO, "Starting DS3 Stats Reader v" + std::string(APP_VERSION));
 
     g_settings.LoadSettings();
+    if (g_settings.isAutoStartEnabled) {
+        AutoStart::Enable();
+    }
 
     std::thread discordThread(discordUpdateLoop);
 
