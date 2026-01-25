@@ -60,6 +60,8 @@ struct Settings {
     std::atomic<bool> isDeathCountVisible = true;
     std::atomic<bool> isPlaytimeVisible = true;
     std::atomic<bool> isDiscordRpcEnabled = true;
+    std::atomic<bool> isBorderlessFullscreenEnabled = false;
+
 
     void LoadSettings() {
         std::ifstream settingsFile(FILENAME);
@@ -76,6 +78,7 @@ struct Settings {
             isDeathCountVisible = settingsData.value("isDeathCountVisible", true);
             isPlaytimeVisible = settingsData.value("isPlaytimeVisible", true);
             isDiscordRpcEnabled = settingsData.value("isDiscordRpcEnabled", true);
+            isBorderlessFullscreenEnabled = settingsData.value("isBorderlessFullscreenEnabled", false);
         }
         catch (...) {
             log(LogLevel::WARN, "Invalid settings.json, restoring defaults");
@@ -87,7 +90,8 @@ struct Settings {
         json settingsData = {
             {"isDeathCountVisible", isDeathCountVisible.load()},
             {"isPlaytimeVisible", isPlaytimeVisible.load()},
-            {"isDiscordRpcEnabled", isDiscordRpcEnabled.load()}
+            {"isDiscordRpcEnabled", isDiscordRpcEnabled.load()},
+            {"isBorderlessFullscreenEnabled", isBorderlessFullscreenEnabled.load()},
         };
 
         std::ofstream settingsFile(FILENAME);
@@ -101,6 +105,97 @@ struct Settings {
 };
 
 Settings g_settings;
+
+class BorderlessWindow {
+private:
+    static constexpr wchar_t WINDOW_TITLE[] = L"DARK SOULS III";
+
+    HWND windowHandle = nullptr;
+    LONG windowedStyle = 0;
+    RECT windowedRect = {};
+    bool isActive = false;
+
+    bool FindGameWindow() {
+        windowHandle = ::FindWindowW(nullptr, WINDOW_TITLE);
+        
+        if (windowHandle == nullptr) {
+            log(LogLevel::WARN, "Could not find Dark Souls III window");
+            return false;
+        }
+
+        return true;
+    }
+
+public:
+    BorderlessWindow() = default;
+
+    BorderlessWindow(const BorderlessWindow&) = delete;
+    BorderlessWindow& operator=(const BorderlessWindow&) = delete;
+
+    bool Enable() {
+        if (isActive) {
+            log(LogLevel::WARN, "Borderless mode already enabled");
+            return true;
+        }
+
+        if (!FindGameWindow()) {
+            return false;
+        }
+
+        windowedStyle = ::GetWindowLongW(windowHandle, GWL_STYLE);
+        if (windowedStyle == 0) {
+            log(LogLevel::ERR, "Failed to get window style");
+            return false;
+        }
+
+        if (!::GetWindowRect(windowHandle, &windowedRect)) {
+            log(LogLevel::ERR, "Failed to get window rect");
+            return false;
+        }
+
+        LONG borderlessWindowStyle = windowedStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_BORDER);
+        ::SetWindowLongW(windowHandle, GWL_STYLE, borderlessWindowStyle);
+
+        int screenWidth = ::GetSystemMetrics(SM_CXSCREEN);
+        int screenHeight = ::GetSystemMetrics(SM_CYSCREEN);
+
+        ::SetWindowPos(windowHandle, HWND_TOP, 0, 0, screenWidth, screenHeight, SWP_FRAMECHANGED);
+
+        isActive = true;
+        log(LogLevel::INFO, "Borderless fullscreen enabled");
+
+        return true;
+    }
+
+    bool Disable() {
+        if (!isActive) {
+            log(LogLevel::WARN, "Borderless mode already disabled");
+            return true;
+        }
+
+        if (!::IsWindow(windowHandle)) {
+            log(LogLevel::ERR, "Window no longer exists");
+            isActive = false;
+            return false;
+        }
+
+        ::SetWindowLongW(windowHandle, GWL_STYLE, windowedStyle);
+        ::SetWindowPos(windowHandle, HWND_NOTOPMOST, windowedRect.left, windowedRect.top, windowedRect.right - windowedRect.left, windowedRect.bottom - windowedRect.top, SWP_FRAMECHANGED);
+
+        isActive = false;
+        log(LogLevel::INFO, "Borderless fullscreen disabled");
+
+        return true;
+    }
+
+    bool IsActive() const {
+        
+        return isActive;
+    }
+};
+
+BorderlessWindow g_borderlessWindow;
+
 
 class DiscordPresence {
 private:
@@ -498,8 +593,8 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
             {"data", {
                 {"isDeathCountVisible", g_settings.isDeathCountVisible.load()},
                 {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
-                {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()}
-
+                {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()},
+                {"isBorderlessFullscreenEnabled", g_settings.isBorderlessFullscreenEnabled.load()},
             }}
         };
 
@@ -522,6 +617,13 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
                 g_settings.isDiscordRpcEnabled = body["isDiscordRpcEnabled"];
             }
 
+            if (body.contains("isBorderlessFullscreenEnabled")) {
+                bool enabled = body["isBorderlessFullscreenEnabled"];
+                g_settings.isBorderlessFullscreenEnabled = enabled;
+
+                enabled ? g_borderlessWindow.Enable() : g_borderlessWindow.Disable();
+            }
+
             g_settings.SaveSettings();
             g_discordCv.notify_one();
 
@@ -531,6 +633,7 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
                     {"isDeathCountVisible", g_settings.isDeathCountVisible.load()},
                     {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
                     {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()},
+                    {"isBorderlessFullscreenEnabled", g_settings.isBorderlessFullscreenEnabled.load()},
                 }}
             };
 
