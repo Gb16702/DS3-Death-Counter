@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <syncstream>
 #include <thread>
 
 using json = nlohmann::json;
@@ -48,15 +49,15 @@ void log(LogLevel level, const std::string& message) {
             break;
     }
 
-    std::cout << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S] ") << levelStr << " " << message << std::endl;
+    std::osyncstream(std::cout) << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S] ") << levelStr << message << std::endl;
 }
 
 struct Settings {
     static constexpr const char* FILENAME = "settings.json";
 
-    bool isDeathCountVisible = true;
-    bool isPlaytimeVisible = true;
-    bool isDiscordRpcEnabled = true;
+    std::atomic<bool> isDeathCountVisible = true;
+    std::atomic<bool> isPlaytimeVisible = true;
+    std::atomic<bool> isDiscordRpcEnabled = true;
 
     void LoadSettings() {
         std::ifstream settingsFile(FILENAME);
@@ -66,19 +67,25 @@ struct Settings {
             return;
         }
 
-        json settingsData;
-        settingsFile >> settingsData;
+        try {
+            json settingsData;
+            settingsFile >> settingsData;
 
-        isDeathCountVisible = settingsData["isDeathCountVisible"];
-        isPlaytimeVisible = settingsData["isPlaytimeVisible"];
-        isDiscordRpcEnabled = settingsData["isDiscordRpcEnabled"];
+            isDeathCountVisible = settingsData.value("isDeathCountVisible", true);
+            isPlaytimeVisible = settingsData.value("isPlaytimeVisible", true);
+            isDiscordRpcEnabled = settingsData.value("isDiscordRpcEnabled", true);
+        }
+        catch (...) {
+            log(LogLevel::WARN, "Invalid settings.json, restoring defaults");
+            SaveSettings();
+        }
     }
     
     void SaveSettings() {
         json settingsData = {
-            {"isDeathCountVisible", isDeathCountVisible},
-            {"isPlaytimeVisible", isPlaytimeVisible},
-            {"isDiscordRpcEnabled", isDiscordRpcEnabled}
+            {"isDeathCountVisible", isDeathCountVisible.load()},
+            {"isPlaytimeVisible", isPlaytimeVisible.load()},
+            {"isDiscordRpcEnabled", isDiscordRpcEnabled.load()}
         };
 
         std::ofstream settingsFile(FILENAME);
@@ -130,7 +137,9 @@ public:
     }
 
     void Update(uint32_t deaths, uint32_t playtimeMs) {
-        if (!initialized) return;
+        if (!initialized) {
+            return;
+        }
 
         uint32_t playtimeMinutes = playtimeMs / 1000 / 60;
         uint32_t days = playtimeMinutes / 1440;
@@ -349,6 +358,8 @@ void discordUpdateLoop() {
     uint32_t currentPlaytime = 0;
     int minutesSinceSync = 5;
 
+    g_discord.Initialize();
+
     while (g_running) {
         if (!g_settings.isDiscordRpcEnabled) {
             Discord_ClearPresence();
@@ -375,18 +386,20 @@ void discordUpdateLoop() {
 
         if (minutesSinceSync >= 5) {
             auto deathsResult = statsReader.GetDeathCount();
-            auto playTimeResult = statsReader.GetPlayTime();
 
-            if (deathsResult && playTimeResult) {
+            if (deathsResult) {
                 currentDeaths = *deathsResult;
-                currentPlaytime = *playTimeResult;
             }
             minutesSinceSync = 0;
         }
 
+		auto playtimeResult = statsReader.GetPlayTime();
+        if (playtimeResult) {
+            currentPlaytime = *playtimeResult;
+		}
+
         g_discord.Update(currentDeaths, currentPlaytime);
 
-        currentPlaytime += 60000;
         minutesSinceSync++;
 
         Discord_RunCallbacks();
@@ -547,8 +560,6 @@ int main() {
 
     g_settings.LoadSettings();
 
-    g_discord.Initialize();
-
     std::thread discordThread(discordUpdateLoop);
 
     DS3StatsReader statsReader;
@@ -556,10 +567,11 @@ int main() {
 
     setupRoutes(server, statsReader, startTime);
 
-    log(LogLevel::INFO, "Server listening on http://localhost:" + std::to_string(SERVER_PORT));
-    server.listen("localhost", SERVER_PORT);
+    log(LogLevel::INFO, "Starting server on http://localhost:" + std::to_string(SERVER_PORT) + "...");
+	server.listen("localhost", SERVER_PORT);
 
     g_running = false;
+
     discordThread.join();
 
     g_discord.Shutdown();
