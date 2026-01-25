@@ -7,11 +7,13 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <ctime>
 #include <expected>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <syncstream>
 #include <thread>
@@ -190,6 +192,8 @@ public:
 
 DiscordPresence g_discord;
 std::atomic<bool> g_running = true;
+std::mutex g_discordMutex;
+std::condition_variable g_discordCv;
 
 enum class MemoryReaderError {
     ProcessNotFound,
@@ -361,9 +365,11 @@ void discordUpdateLoop() {
     g_discord.Initialize();
 
     while (g_running) {
+        std::unique_lock<std::mutex> lock(g_discordMutex);
+
         if (!g_settings.isDiscordRpcEnabled) {
             Discord_ClearPresence();
-            std::this_thread::sleep_for(std::chrono::minutes(1));
+            g_discordCv.wait_for(lock, std::chrono::seconds(15));
             continue;
         }
 
@@ -379,7 +385,7 @@ void discordUpdateLoop() {
                     gameConnected = false;
                 }
                 Discord_RunCallbacks();
-                std::this_thread::sleep_for(std::chrono::minutes(1));
+                g_discordCv.wait_for(lock, std::chrono::seconds(15));
                 continue;
             }
         }
@@ -393,17 +399,17 @@ void discordUpdateLoop() {
             minutesSinceSync = 0;
         }
 
-		auto playtimeResult = statsReader.GetPlayTime();
+        auto playtimeResult = statsReader.GetPlayTime();
         if (playtimeResult) {
             currentPlaytime = *playtimeResult;
-		}
+        }
 
         g_discord.Update(currentDeaths, currentPlaytime);
 
         minutesSinceSync++;
 
         Discord_RunCallbacks();
-        std::this_thread::sleep_for(std::chrono::minutes(1));
+        g_discordCv.wait_for(lock, std::chrono::seconds(15));
     }
 }
 
@@ -484,6 +490,60 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
         };
 
         res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/settings", [](const httplib::Request& req, httplib::Response& res) {
+        json response = {
+            {"success", true},
+            {"data", {
+                {"isDeathCountVisible", g_settings.isDeathCountVisible.load()},
+                {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
+                {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()}
+
+            }}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Patch("/api/settings", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = json::parse(req.body);
+
+            if (body.contains("isDeathCountVisible")) {
+                g_settings.isDeathCountVisible = body["isDeathCountVisible"];
+            }
+
+            if (body.contains("isPlaytimeVisible")) {
+                g_settings.isPlaytimeVisible = body["isPlaytimeVisible"];
+            }
+
+            if (body.contains("isDiscordRpcEnabled")) {
+                g_settings.isDiscordRpcEnabled = body["isDiscordRpcEnabled"];
+            }
+
+            g_settings.SaveSettings();
+            g_discordCv.notify_one();
+
+            json response = {
+                {"success", true},
+                {"data", {
+                    {"isDeathCountVisible", g_settings.isDeathCountVisible.load()},
+                    {"isPlaytimeVisible", g_settings.isPlaytimeVisible.load()},
+                    {"isDiscordRpcEnabled", g_settings.isDiscordRpcEnabled.load()},
+                }}
+            };
+
+            res.set_content(response.dump(), "application/json");
+        } catch (...) {
+            json response = {
+                {"success", false},
+                {"error", "Invalid request body"}
+            };
+
+            res.status = httplib::StatusCode::BadRequest_400;
+            res.set_content(response.dump(), "application/json");
+        }
     });
     
     server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
