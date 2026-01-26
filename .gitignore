@@ -1,0 +1,28 @@
+# Build outputs
+x64/
+Debug/
+Release/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.idb
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.user
+
+# Local data
+sessions.db
+settings.json
+
+# Temp/misc
+nul
+DS3-deat.*/
+DS3-stats-reader/
+
+# OS files
+Thumbs.db
+.DS_Store
