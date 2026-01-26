@@ -36,13 +36,16 @@ void gameMonitorLoop() {
         auto playtimeResult = statsReader.GetPlayTime();
 
         if (deathsResult && playtimeResult) {
-            if (!g_sessionActive) {
+            if (!g_sessionActive && *playtimeResult > 0) {
                 g_sessionStartTime = Stats::GetCurrentTimestamp();
                 g_startingDeaths = *deathsResult;
                 g_sessionActive = true;
+                sessionStartPoint = std::chrono::steady_clock::now();
                 log(LogLevel::INFO, "Session started with " + std::to_string(g_startingDeaths) + " deaths");
             }
-            g_lastKnownDeaths = *deathsResult;
+            if (g_sessionActive) {
+                g_lastKnownDeaths = *deathsResult;
+            }
         } else {
             auto reinitResult = statsReader.Initialize();
 

@@ -169,6 +169,9 @@
     <ClInclude Include="src\monitoring\GameMonitor.h" />
     <ClInclude Include="sqlite3.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Xml Include="table.xml" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
