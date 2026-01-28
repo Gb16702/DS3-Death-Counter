@@ -38,18 +38,31 @@ void DiscordPresence::Initialize() {
     log(LogLevel::INFO, "Discord remote procedure call initialized");
 }
 
-void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName) {
+void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName, bool inBossFight, bool inMainMenu, bool isBossZone) {
     if (!initialized) {
         return;
     }
 
-    if (deaths == 0) {
-        detailsBuffer = "No deaths yet";
+    if (inMainMenu) {
+        detailsBuffer = "In Main Menu";
+        stateBuffer = "";
     } else {
-        detailsBuffer = "Died " + std::to_string(deaths) + (deaths == 1 ? " time" : " times");
-    }
+        if (inBossFight) {
+            detailsBuffer = "Fighting " + zoneName;
+        } else if (zoneName == "Firelink Shrine" || zoneName == "Dark Firelink Shrine") {
+            detailsBuffer = "Resting at " + zoneName;
+        } else if (isBossZone) {
+            detailsBuffer = "Exploring " + zoneName + " Arena";
+        } else {
+            detailsBuffer = "Exploring " + zoneName;
+        }
 
-    stateBuffer = zoneName;
+        if (deaths == 0) {
+            stateBuffer = "No deaths yet";
+        } else {
+            stateBuffer = "Died " + std::to_string(deaths) + (deaths == 1 ? " time" : " times");
+        }
+    }
 
     DiscordRichPresence presence{};
     presence.details = detailsBuffer.c_str();

@@ -19,7 +19,7 @@ public:
     ~DiscordPresence();
 
     void Initialize();
-    void Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName);
+    void Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName, bool inBossFight, bool inMainMenu, bool isBossZone);
     void Shutdown();
 };
 

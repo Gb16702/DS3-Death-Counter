@@ -63,12 +63,22 @@ void discordUpdateLoop() {
         }
 
         std::string zoneName = "Unknown Area";
+        bool inMainMenu = true;
+        bool isBossZone = false;
         auto zoneResult = statsReader.GetPlayRegion();
-        if (zoneResult) {
+        if (zoneResult && *zoneResult != 0) {
             zoneName = GetZoneName(*zoneResult);
+            isBossZone = IsBossZone(*zoneResult);
+            inMainMenu = false;
         }
 
-        g_discord.Update(currentDeaths, currentPlaytime, zoneName);
+        bool inBossFight = false;
+        auto bossResult = statsReader.GetInBossFight();
+        if (bossResult) {
+            inBossFight = *bossResult;
+        }
+
+        g_discord.Update(currentDeaths, currentPlaytime, zoneName, inBossFight, inMainMenu, isBossZone);
 
         minutesSinceSync++;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <cstdint>
 
@@ -45,7 +46,7 @@ inline const std::unordered_map<uint32_t, std::string> ZONE_NAMES = {
     {320001, "Archdragon Peak"},
     {320002, "Archdragon Peak"},
     {320010, "Ancient Wyvern"},
-    {320011, "Dragon-kin Mausoleum"},
+    {320011, "Nameless King"},
     {320012, "Archdragon Peak"},
     {320013, "Archdragon Peak"},
     {320020, "Great Belfry"},
@@ -182,4 +183,36 @@ inline std::string GetZoneName(uint32_t zoneId) {
 	}
 
 	return "Unknown Area";
+}
+
+inline const std::unordered_set<uint32_t> BOSS_ZONES = {
+    300006,  // Dancer of the Boreal Valley
+    300007,  // Vordt of the Boreal Valley
+    300023,  // Oceiros, the Consumed King
+    301010,  // Dragonslayer Armour
+    310020,  // Curse-rotted Greatwood
+    320011,  // Nameless King
+    320010,  // Ancient Wyvern
+    330001,  // Crystal Sage
+    330010,  // Abyss Watchers
+    341010,  // Twin Princes
+    350000,  // Deacons of the Deep
+    370006,  // Pontiff Sulyvahn
+    370013,  // Aldrich, Devourer of Gods
+    380000,  // High Lord Wolnir
+    380010,  // Old Demon King
+    390005,  // Yhorm the Giant
+    400000,  // Champion Gundyr
+    400100,  // Iudex Gundyr
+    410000,  // Soul of Cinder
+    450000,  // Sister Friede
+    450010,  // Champion's Gravetender
+    500000,  // Demon Prince
+    510000,  // Spear of the Church
+    510010,  // Darkeater Midir
+    511000,  // Slave Knight Gael
+};
+
+inline bool IsBossZone(uint32_t zoneId) {
+    return BOSS_ZONES.contains(zoneId);
 }
