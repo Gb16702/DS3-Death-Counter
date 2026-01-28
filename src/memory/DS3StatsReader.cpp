@@ -37,3 +37,48 @@ std::expected<uint32_t, MemoryReaderError> DS3StatsReader::GetDeathCount() {
 std::expected<uint32_t, MemoryReaderError> DS3StatsReader::GetPlayTime() {
     return ReadGameData(GAMEDATAMAN_POINTER, PLAYTIME_OFFSET);
 }
+
+std::expected<uint32_t, MemoryReaderError> DS3StatsReader::ReadWorldChrData(uintptr_t offset) {
+    uintptr_t pointerAddress = reader.GetModuleBase() + WORLDCHRMAN_POINTER;
+
+    uintptr_t worldChrMan = 0;
+    if (!reader.ReadMemory(pointerAddress, worldChrMan)) {
+        return std::unexpected(MemoryReaderError::ReadFailed);
+    }
+
+    if (worldChrMan == 0) {
+        return std::unexpected(MemoryReaderError::ReadFailed);
+    }
+
+    uintptr_t playerPtr = 0;
+    if (!reader.ReadMemory(worldChrMan + WORLDCHRMAN_PLAYER_OFFSET, playerPtr)) {
+        return std::unexpected(MemoryReaderError::ReadFailed);
+    }
+
+    if (playerPtr == 0) {
+        return std::unexpected(MemoryReaderError::ReadFailed);
+    }
+
+    uint32_t value = 0;
+    if (!reader.ReadMemory(playerPtr + offset, value)) {
+        return std::unexpected(MemoryReaderError::ReadFailed);
+    }
+
+    return value;
+}
+
+std::expected<uint32_t, MemoryReaderError> DS3StatsReader::GetCurrentZone() {
+    return ReadWorldChrData(PLAYER_ZONE_OFFSET);
+}
+
+std::expected<uint32_t, MemoryReaderError> DS3StatsReader::GetPlayRegion() {
+    return ReadWorldChrData(PLAYER_PLAY_REGION_OFFSET);
+}
+
+std::expected<bool, MemoryReaderError> DS3StatsReader::GetInBossFight() {
+    auto result = ReadGameData(GAMEDATAMAN_POINTER, BOSS_FIGHT_OFFSET);
+    if (!result) {
+        return std::unexpected(result.error());
+    }
+    return *result != 0;
+}

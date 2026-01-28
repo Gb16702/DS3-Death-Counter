@@ -38,15 +38,10 @@ void DiscordPresence::Initialize() {
     log(LogLevel::INFO, "Discord remote procedure call initialized");
 }
 
-void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs) {
+void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName) {
     if (!initialized) {
         return;
     }
-
-    uint32_t playtimeMinutes = playtimeMs / 1000 / 60;
-    uint32_t days = playtimeMinutes / 1440;
-    uint32_t hours = (playtimeMinutes % 1440) / 60;
-    uint32_t minutes = playtimeMinutes % 60;
 
     if (deaths == 0) {
         detailsBuffer = "No deaths yet";
@@ -54,19 +49,7 @@ void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs) {
         detailsBuffer = "Died " + std::to_string(deaths) + (deaths == 1 ? " time" : " times");
     }
 
-    std::ostringstream oss;
-    oss << "Current run: ";
-    if (days > 0) {
-        oss << days << "d ";
-    }
-
-    if (hours > 0 || days > 0) {
-        oss << hours << "h ";
-    }
-
-    oss << minutes << "m";
-
-    stateBuffer = oss.str();
+    stateBuffer = zoneName;
 
     DiscordRichPresence presence{};
     presence.details = detailsBuffer.c_str();

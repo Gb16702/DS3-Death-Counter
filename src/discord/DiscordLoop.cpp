@@ -2,6 +2,7 @@
 #include "DiscordPresence.h"
 #include "../core/Log.h"
 #include "../core/Settings.h"
+#include "../core/ZoneNames.h"
 #include "../memory/DS3StatsReader.h"
 #include "../monitoring/GameMonitor.h"
 
@@ -61,7 +62,13 @@ void discordUpdateLoop() {
             currentPlaytime = *playtimeResult;
         }
 
-        g_discord.Update(currentDeaths, currentPlaytime);
+        std::string zoneName = "Unknown Area";
+        auto zoneResult = statsReader.GetPlayRegion();
+        if (zoneResult) {
+            zoneName = GetZoneName(*zoneResult);
+        }
+
+        g_discord.Update(currentDeaths, currentPlaytime, zoneName);
 
         minutesSinceSync++;
 

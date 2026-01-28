@@ -157,6 +157,7 @@
     <ClInclude Include="src\core\Log.h" />
     <ClInclude Include="src\core\Settings.h" />
     <ClInclude Include="src\core\Stats.h" />
+    <ClInclude Include="src\core\ZoneNames.h" />
     <ClInclude Include="src\database\SessionDatabase.h" />
     <ClInclude Include="src\memory\MemoryReader.h" />
     <ClInclude Include="src\memory\DS3StatsReader.h" />
