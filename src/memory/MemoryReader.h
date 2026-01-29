@@ -44,4 +44,5 @@ public:
     uintptr_t GetModuleBase() const;
     bool IsInitialized() const;
     bool IsProcessRunning() const;
+    void Reset();
 };

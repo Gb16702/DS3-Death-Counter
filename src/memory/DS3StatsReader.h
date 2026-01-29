@@ -63,6 +63,7 @@ public:
     std::expected<void, MemoryReaderError> Initialize();
     bool IsInitialized() const;
     bool IsProcessRunning() const;
+    void Reset();
     std::expected<uint32_t, MemoryReaderError> GetDeathCount();
     std::expected<uint32_t, MemoryReaderError> GetPlayTime();
     std::expected<uint32_t, MemoryReaderError> GetCurrentZone();

@@ -57,10 +57,21 @@ void DiscordPresence::Update(uint32_t deaths, uint32_t playtimeMs, const std::st
             detailsBuffer = "Exploring " + zoneName;
         }
 
-        if (deaths == 0) {
-            stateBuffer = "No deaths yet";
+        uint32_t totalMinutes = playtimeMs / 60000;
+        uint32_t hours = totalMinutes / 60;
+        uint32_t minutes = totalMinutes % 60;
+
+        std::string playtimeStr;
+        if (hours > 0) {
+            playtimeStr = std::to_string(hours) + "H " + std::to_string(minutes) + "M";
         } else {
-            stateBuffer = "Died " + std::to_string(deaths) + (deaths == 1 ? " time" : " times");
+            playtimeStr = std::to_string(minutes) + "M";
+        }
+
+        if (deaths == 0) {
+            stateBuffer = "No deaths yet. Current run: " + playtimeStr;
+        } else {
+            stateBuffer = "Died " + std::to_string(deaths) + (deaths == 1 ? " time. " : " times. ") + "Current run: " + playtimeStr;
         }
     }
 
@@ -79,4 +90,8 @@ void DiscordPresence::Shutdown() {
         initialized = false;
         log(LogLevel::INFO, "Discord remote procedure call shutdown");
     }
+}
+
+void DiscordPresence::ResetTimestamp() {
+    startTimestamp = time(nullptr);
 }

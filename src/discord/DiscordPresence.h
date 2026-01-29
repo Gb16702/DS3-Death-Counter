@@ -21,6 +21,7 @@ public:
     void Initialize();
     void Update(uint32_t deaths, uint32_t playtimeMs, const std::string& zoneName, bool inBossFight, bool inMainMenu, bool isBossZone);
     void Shutdown();
+    void ResetTimestamp();
 };
 
 extern DiscordPresence g_discord;

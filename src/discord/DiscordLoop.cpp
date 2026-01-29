@@ -18,7 +18,6 @@ void discordUpdateLoop() {
     bool gameConnected = false;
     uint32_t currentDeaths = 0;
     uint32_t currentPlaytime = 0;
-    int minutesSinceSync = 5;
 
     g_discord.Initialize();
 
@@ -35,7 +34,7 @@ void discordUpdateLoop() {
             if (statsReader.Initialize()) {
                 gameConnected = true;
                 log(LogLevel::INFO, "Game detected, starting Discord presence");
-                minutesSinceSync = 5;
+                g_discord.ResetTimestamp();
             } else {
                 if (gameConnected) {
                     log(LogLevel::WARN, "Game disconnected");
@@ -54,6 +53,7 @@ void discordUpdateLoop() {
                 Discord_ClearPresence();
                 gameConnected = false;
             }
+            statsReader.Reset();
             Discord_RunCallbacks();
             g_discordCv.wait_for(lock, std::chrono::seconds(15));
             continue;
@@ -64,12 +64,9 @@ void discordUpdateLoop() {
             currentPlaytime = *playtimeResult;
         }
 
-        if (minutesSinceSync >= 5) {
-            auto deathsResult = statsReader.GetDeathCount();
-            if (deathsResult) {
-                currentDeaths = *deathsResult;
-            }
-            minutesSinceSync = 0;
+        auto deathsResult = statsReader.GetDeathCount();
+        if (deathsResult) {
+            currentDeaths = *deathsResult;
         }
 
         std::string zoneName = "Unknown Area";
@@ -89,8 +86,6 @@ void discordUpdateLoop() {
         }
 
         g_discord.Update(currentDeaths, currentPlaytime, zoneName, inBossFight, inMainMenu, isBossZone);
-
-        minutesSinceSync++;
 
         Discord_RunCallbacks();
         g_discordCv.wait_for(lock, std::chrono::seconds(15));

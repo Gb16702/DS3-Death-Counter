@@ -34,6 +34,10 @@ bool DS3StatsReader::IsProcessRunning() const {
     return reader.IsProcessRunning();
 }
 
+void DS3StatsReader::Reset() {
+    reader.Reset();
+}
+
 std::expected<uint32_t, MemoryReaderError> DS3StatsReader::GetDeathCount() {
     return ReadGameData(GAMEDATAMAN_POINTER, DEATH_COUNT_OFFSET);
 }

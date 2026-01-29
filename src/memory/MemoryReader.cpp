@@ -94,3 +94,12 @@ bool MemoryReader::IsProcessRunning() const {
 
     return exitCode == STILL_ACTIVE;
 }
+
+void MemoryReader::Reset() {
+    if (processHandle) {
+        CloseHandle(processHandle);
+        processHandle = nullptr;
+    }
+    processId = 0;
+    moduleBase = 0;
+}
