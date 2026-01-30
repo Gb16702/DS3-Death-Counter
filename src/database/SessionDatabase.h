@@ -57,6 +57,12 @@ struct CharacterStatsRecord {
     std::string updatedAt;
 };
 
+struct DeathStats {
+    int total;
+    int bossDeaths;
+    int nonBossDeaths;
+};
+
 class SessionDatabase {
 private:
     sqlite3* db = nullptr;
@@ -78,12 +84,10 @@ public:
     std::optional<PlayerStats> GetPlayerStats();
     std::vector<Session> GetAllSessions();
     bool SaveDeath(uint32_t zoneId, const std::string& zoneName, int characterId, bool isBossDeath);
-    std::vector<Death> GetAllDeaths();
-    std::vector<Death> GetDeathsByCharacter(int characterId);
-    std::map<std::string, int> GetDeathCountByZone();
-    std::map<std::string, int> GetDeathCountByZoneForCharacter(int characterId);
-    int GetTotalDeathCount();
-    int GetDeathCountForCharacter(int characterId);
+    std::vector<Death> GetAllDeaths(std::optional<int> characterId = std::nullopt);
+    DeathStats GetDeathStats(std::optional<int> characterId = std::nullopt);
+    std::map<std::string, int> GetDeathsByZone(std::optional<int> characterId = std::nullopt);
+    std::map<std::string, int> GetDeathsByBoss(std::optional<int> characterId = std::nullopt);
     void Close();
 
     int GetOrCreateCharacter(const std::string& name, int classId);

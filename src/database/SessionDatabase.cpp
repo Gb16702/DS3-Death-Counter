@@ -278,35 +278,42 @@ bool SessionDatabase::SaveDeath(uint32_t zoneId, const std::string& zoneName, in
     return true;
 }
 
-std::vector<Death> SessionDatabase::GetAllDeaths() {
+std::vector<Death> SessionDatabase::GetAllDeaths(std::optional<int> characterId) {
     std::vector<Death> deaths;
 
-    const char* sql = R"(
+    std::string sql = R"(
         SELECT id, zone_id, zone_name, character_id, timestamp, is_boss_death
         FROM deaths
-        ORDER BY id DESC
     )";
 
+    if (characterId) {
+        sql += " WHERE character_id = ?";
+    }
+
+    sql += " ORDER BY id DESC";
+
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         log(LogLevel::ERR, "Failed to prepare GetAllDeaths");
         return deaths;
     }
 
+    if (characterId) {
+        sqlite3_bind_int(stmt, 1, *characterId);
+    }
+
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         Death death;
         death.id = sqlite3_column_int(stmt, 0);
         death.zoneId = static_cast<uint32_t>(sqlite3_column_int(stmt, 1));
 
-        const unsigned char* nameText = sqlite3_column_text(stmt, 2);
-        if (nameText) {
+        if (const unsigned char* nameText = sqlite3_column_text(stmt, 2)) {
             death.zoneName = reinterpret_cast<const char*>(nameText);
         }
 
         death.characterId = sqlite3_column_int(stmt, 3);
 
-        const unsigned char* timestampText = sqlite3_column_text(stmt, 4);
-        if (timestampText) {
+        if (const unsigned char* timestampText = sqlite3_column_text(stmt, 4)) {
             death.timestamp = reinterpret_cast<const char*>(timestampText);
         }
 
@@ -319,64 +326,61 @@ std::vector<Death> SessionDatabase::GetAllDeaths() {
     return deaths;
 }
 
-std::vector<Death> SessionDatabase::GetDeathsByCharacter(int characterId) {
-    std::vector<Death> deaths;
-
-    const char* sql = R"(
-        SELECT id, zone_id, zone_name, character_id, timestamp, is_boss_death
+DeathStats SessionDatabase::GetDeathStats(std::optional<int> characterId) {
+    std::string sql = R"(
+        SELECT
+            COUNT(*),
+            SUM(CASE WHEN is_boss_death = 1 THEN 1 ELSE 0 END)
         FROM deaths
-        WHERE character_id = ?
-        ORDER BY id DESC
     )";
 
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        log(LogLevel::ERR, "Failed to prepare GetDeathsByCharacter");
-        return deaths;
+    if (characterId) {
+        sql += " WHERE character_id = ?";
     }
 
-    sqlite3_bind_int(stmt, 1, characterId);
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        log(LogLevel::ERR, "Failed to prepare GetDeathStats");
+        return DeathStats{0, 0, 0};
+    }
 
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        Death death;
-        death.id = sqlite3_column_int(stmt, 0);
-        death.zoneId = static_cast<uint32_t>(sqlite3_column_int(stmt, 1));
+    if (characterId) {
+        sqlite3_bind_int(stmt, 1, *characterId);
+    }
 
-        const unsigned char* nameText = sqlite3_column_text(stmt, 2);
-        if (nameText) {
-            death.zoneName = reinterpret_cast<const char*>(nameText);
-        }
-
-        death.characterId = sqlite3_column_int(stmt, 3);
-
-        const unsigned char* timestampText = sqlite3_column_text(stmt, 4);
-        if (timestampText) {
-            death.timestamp = reinterpret_cast<const char*>(timestampText);
-        }
-
-        death.isBossDeath = sqlite3_column_int(stmt, 5) != 0;
-
-        deaths.push_back(death);
+    DeathStats stats{0, 0, 0};
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        stats.total = sqlite3_column_int(stmt, 0);
+        stats.bossDeaths = sqlite3_column_int(stmt, 1);
+        stats.nonBossDeaths = stats.total - stats.bossDeaths;
     }
 
     sqlite3_finalize(stmt);
-    return deaths;
+    return stats;
 }
 
-std::map<std::string, int> SessionDatabase::GetDeathCountByZone() {
+std::map<std::string, int> SessionDatabase::GetDeathsByZone(std::optional<int> characterId) {
     std::map<std::string, int> result;
 
-    const char* sql = R"(
+    std::string sql = R"(
         SELECT zone_name, COUNT(*) as death_count
         FROM deaths
-        GROUP BY zone_id
-        ORDER BY death_count DESC
     )";
 
+    if (characterId) {
+        sql += " WHERE character_id = ?";
+    }
+
+    sql += " GROUP BY zone_id ORDER BY death_count DESC";
+
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        log(LogLevel::ERR, "Failed to prepare GetDeathCountByZone");
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        log(LogLevel::ERR, "Failed to prepare GetDeathsByZone");
         return result;
+    }
+
+    if (characterId) {
+        sqlite3_bind_int(stmt, 1, *characterId);
     }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -392,24 +396,30 @@ std::map<std::string, int> SessionDatabase::GetDeathCountByZone() {
     return result;
 }
 
-std::map<std::string, int> SessionDatabase::GetDeathCountByZoneForCharacter(int characterId) {
+std::map<std::string, int> SessionDatabase::GetDeathsByBoss(std::optional<int> characterId) {
     std::map<std::string, int> result;
 
-    const char* sql = R"(
+    std::string sql = R"(
         SELECT zone_name, COUNT(*) as death_count
         FROM deaths
-        WHERE character_id = ?
-        GROUP BY zone_id
-        ORDER BY death_count DESC
+        WHERE is_boss_death = 1
     )";
 
+    if (characterId) {
+        sql += " AND character_id = ?";
+    }
+
+    sql += " GROUP BY zone_id ORDER BY death_count DESC";
+
     sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        log(LogLevel::ERR, "Failed to prepare GetDeathCountByZoneForCharacter");
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        log(LogLevel::ERR, "Failed to prepare GetDeathsByBoss");
         return result;
     }
 
-    sqlite3_bind_int(stmt, 1, characterId);
+    if (characterId) {
+        sqlite3_bind_int(stmt, 1, *characterId);
+    }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         const unsigned char* nameText = sqlite3_column_text(stmt, 0);
@@ -422,44 +432,6 @@ std::map<std::string, int> SessionDatabase::GetDeathCountByZoneForCharacter(int 
 
     sqlite3_finalize(stmt);
     return result;
-}
-
-int SessionDatabase::GetTotalDeathCount() {
-    const char* sql = "SELECT COUNT(*) FROM deaths";
-
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        log(LogLevel::ERR, "Failed to prepare GetTotalDeathCount");
-        return 0;
-    }
-
-    int count = 0;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        count = sqlite3_column_int(stmt, 0);
-    }
-
-    sqlite3_finalize(stmt);
-    return count;
-}
-
-int SessionDatabase::GetDeathCountForCharacter(int characterId) {
-    const char* sql = "SELECT COUNT(*) FROM deaths WHERE character_id = ?";
-
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        log(LogLevel::ERR, "Failed to prepare GetDeathCountForCharacter");
-        return 0;
-    }
-
-    sqlite3_bind_int(stmt, 1, characterId);
-
-    int count = 0;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        count = sqlite3_column_int(stmt, 0);
-    }
-
-    sqlite3_finalize(stmt);
-    return count;
 }
 
 int SessionDatabase::GetOrCreateCharacter(const std::string& name, int classId) {
