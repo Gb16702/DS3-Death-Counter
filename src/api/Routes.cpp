@@ -130,8 +130,8 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
 
     server.Get("/api/characters", [](const httplib::Request& req, httplib::Response& res) {
         auto characters = g_sessionDb.GetAllCharacters();
+        
         json charactersArray = json::array();
-
         for (const auto& character : characters) {
             charactersArray.push_back({
                 {"id", character.id},
@@ -144,6 +144,106 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
         json response = {
             {"success", true},
             {"data", charactersArray}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/deaths", [](const httplib::Request& req, httplib::Response& res) {
+        std::optional<int> characterId = std::nullopt;
+        auto param = req.get_param_value("characterId");
+        if (!param.empty()) {
+            characterId = std::stoi(param);
+        }
+
+        auto deaths = g_sessionDb.GetAllDeaths(characterId);
+
+        json deathsArray = json::array();
+        for (const auto& death : deaths) {
+            deathsArray.push_back({
+                {"id", death.id},
+                {"characterId", death.characterId},
+                {"isBossDeath", death.isBossDeath},
+                {"zoneId", death.zoneId},
+                {"zoneName", death.zoneName},
+                {"timestamp", death.timestamp}
+                });
+        }
+
+        json response = {
+            {"success", true},
+            {"data", deathsArray}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/deaths/stats", [](const httplib::Request& req, httplib::Response& res) {
+        std::optional<int> characterId = std::nullopt;
+        auto param = req.get_param_value("characterId");
+        if (!param.empty()) {
+            characterId = std::stoi(param);
+        }
+
+        auto deathsStats = g_sessionDb.GetDeathStats(characterId);
+        
+        json response = {
+            { "success", true },
+            {"data", {
+                {"total", deathsStats.total},
+                {"bossDeaths", deathsStats.bossDeaths},
+                {"nonBossDeaths", deathsStats.nonBossDeaths}
+            }}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/deaths/by-zone", [](const httplib::Request& req, httplib::Response& res) {
+        std::optional<int> characterId = std::nullopt;
+        auto param = req.get_param_value("characterId");
+        if (!param.empty()) {
+            characterId = std::stoi(param);
+        }
+
+        auto deathsByZone = g_sessionDb.GetDeathsByZone(characterId);
+
+        json zonesArray = json::array();
+        for (const auto& [zone, count] : deathsByZone) {
+            zonesArray.push_back({
+                {"zone", zone},
+                {"count", count},
+            });
+        }
+
+        json response = {
+            {"success", true},
+            {"data", zonesArray}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/deaths/by-boss", [](const httplib::Request& req, httplib::Response& res) {
+        std::optional<int> characterId = std::nullopt;
+        auto param = req.get_param_value("characterId");
+        if (!param.empty()) {
+            characterId = std::stoi(param);
+        }
+
+        auto deathsByBoss = g_sessionDb.GetDeathsByBoss(characterId);
+
+        json bossesArray = json::array();
+        for (const auto& [boss, count] : deathsByBoss) {
+            bossesArray.push_back({
+                {"boss", boss},
+                {"count", count}
+            });
+        }
+
+        json response = {
+            {"success", true},
+            {"data", bossesArray},
         };
 
         res.set_content(response.dump(), "application/json");
