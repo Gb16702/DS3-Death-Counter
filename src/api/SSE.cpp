@@ -14,6 +14,8 @@ void streamStats(DS3StatsReader& statsReader, httplib::DataSink& sink) {
     uint32_t lastPlayTime = 0;
     bool wasConnected = false;
     bool firstRun = true;
+    int reconnectDelay = 1500;
+    constexpr int maxReconnectDelay = 30000;
 
     log(LogLevel::INFO, "Client connected to SSE stream");
 
@@ -24,9 +26,11 @@ void streamStats(DS3StatsReader& statsReader, httplib::DataSink& sink) {
                 if (wasConnected) {
                     log(LogLevel::WARN, "Game disconnected, waiting...");
                     wasConnected = false;
+                    reconnectDelay = 1500;
                 }
 
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::this_thread::sleep_for(std::chrono::milliseconds(reconnectDelay));
+                reconnectDelay = std::min(reconnectDelay * 2, maxReconnectDelay);
                 continue;
             }
         }
@@ -34,6 +38,19 @@ void streamStats(DS3StatsReader& statsReader, httplib::DataSink& sink) {
         if (!wasConnected) {
             log(LogLevel::INFO, "Connected to DarkSoulsIII.exe");
             wasConnected = true;
+            reconnectDelay = 1500;
+        }
+
+        if (!statsReader.IsProcessRunning()) {
+            if (wasConnected) {
+                log(LogLevel::WARN, "Game closed, waiting for reconnection...");
+                wasConnected = false;
+                reconnectDelay = 1500;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(reconnectDelay));
+            reconnectDelay = std::min(reconnectDelay * 2, maxReconnectDelay);
+            statsReader.Initialize();
+            continue;
         }
 
         auto deathsResult = statsReader.GetDeathCount();
@@ -63,6 +80,6 @@ void streamStats(DS3StatsReader& statsReader, httplib::DataSink& sink) {
             firstRun = false;
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
     }
 }
