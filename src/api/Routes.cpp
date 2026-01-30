@@ -128,6 +128,27 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
         res.set_content(response.dump(), "application/json");
     });
 
+    server.Get("/api/characters", [](const httplib::Request& req, httplib::Response& res) {
+        auto characters = g_sessionDb.GetAllCharacters();
+        json charactersArray = json::array();
+
+        for (const auto& character : characters) {
+            charactersArray.push_back({
+                {"id", character.id},
+                {"name", character.name},
+                {"classId", character.classId},
+                {"createdAt", character.createdAt}
+            });
+        }
+
+        json response = {
+            {"success", true},
+            {"data", charactersArray}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
     server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
         if (!statsReader.IsInitialized()) {
             statsReader.Initialize();
