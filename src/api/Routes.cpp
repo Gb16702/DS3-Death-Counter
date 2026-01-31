@@ -249,6 +249,68 @@ void setupRoutes(httplib::Server& server, DS3StatsReader& statsReader, std::chro
         res.set_content(response.dump(), "application/json");
     });
 
+    server.Get("/api/status", [&](const httplib::Request& req, httplib::Response& res) {
+        bool isRunning = statsReader.IsProcessRunning();
+
+        if (!isRunning && statsReader.Initialize()) {
+            isRunning = true;
+        }
+
+        json response = {
+            {"success", true},
+            {"data", {
+                {"status", isRunning ? "in_game" : "not_running"}
+            }}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
+    server.Get("/api/character", [&](const httplib::Request& req, httplib::Response& res) {
+        if (!statsReader.IsInitialized()) {
+            statsReader.Initialize();
+        }
+
+        if (!statsReader.IsProcessRunning()) {
+            json response = {
+                {"success", false},
+                {"error", {
+                    {"code", "GAME_NOT_RUNNING"},
+                    {"message", "Game is not running"}
+                }}
+            };
+            res.status = httplib::StatusCode::ServiceUnavailable_503;
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+
+        auto nameResult = statsReader.GetCharacterName();
+        if (!nameResult) {
+            json response = {
+                {"success", false},
+                {"error", {
+                    {"code", "NO_CHARACTER"},
+                    {"message", "No character loaded"}
+                }}
+            };
+            res.status = httplib::StatusCode::NotFound_404;
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+
+        std::wstring wname = *nameResult;
+        std::string name(wname.begin(), wname.end());
+
+        json response = {
+            {"success", true},
+            {"data", {
+                {"name", name}
+            }}
+        };
+
+        res.set_content(response.dump(), "application/json");
+    });
+
     server.Get("/api/stats", [&](const httplib::Request& req, httplib::Response& res) {
         if (!statsReader.IsInitialized()) {
             statsReader.Initialize();
