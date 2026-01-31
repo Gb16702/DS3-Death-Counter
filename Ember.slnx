@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="DS3-death-counter.vcxproj" Id="361fe402-176f-4953-94c7-b3b5dd98a1a2" />
+  <Project Path="Ember.vcxproj" Id="361fe402-176f-4953-94c7-b3b5dd98a1a2" />
 </Solution>
