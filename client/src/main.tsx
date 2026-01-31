@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provider.tsx";
 import { routeTree } from "./routeTree.gen";
-import "./styles.css";
+import "./styles/globals.css";
 
 const TanStackQueryProviderContext = TanStackQueryProvider.getContext();
 const router = createRouter({
