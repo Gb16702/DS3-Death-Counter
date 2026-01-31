@@ -106,7 +106,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)server;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -124,7 +124,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)server;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -134,40 +134,40 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\core\Log.cpp" />
-    <ClCompile Include="src\core\Settings.cpp" />
-    <ClCompile Include="src\core\Stats.cpp" />
-    <ClCompile Include="src\database\SessionDatabase.cpp" />
-    <ClCompile Include="src\memory\MemoryReader.cpp" />
-    <ClCompile Include="src\memory\DS3StatsReader.cpp" />
-    <ClCompile Include="src\discord\DiscordPresence.cpp" />
-    <ClCompile Include="src\discord\DiscordLoop.cpp" />
-    <ClCompile Include="src\windows\BorderlessWindow.cpp" />
-    <ClCompile Include="src\windows\AutoStart.cpp" />
-    <ClCompile Include="src\api\Routes.cpp" />
-    <ClCompile Include="src\api\SSE.cpp" />
-    <ClCompile Include="src\monitoring\GameMonitor.cpp" />
+    <ClCompile Include="server\main.cpp" />
+    <ClCompile Include="server\core\Log.cpp" />
+    <ClCompile Include="server\core\Settings.cpp" />
+    <ClCompile Include="server\core\Stats.cpp" />
+    <ClCompile Include="server\database\SessionDatabase.cpp" />
+    <ClCompile Include="server\memory\MemoryReader.cpp" />
+    <ClCompile Include="server\memory\DS3StatsReader.cpp" />
+    <ClCompile Include="server\discord\DiscordPresence.cpp" />
+    <ClCompile Include="server\discord\DiscordLoop.cpp" />
+    <ClCompile Include="server\windows\BorderlessWindow.cpp" />
+    <ClCompile Include="server\windows\AutoStart.cpp" />
+    <ClCompile Include="server\api\Routes.cpp" />
+    <ClCompile Include="server\api\SSE.cpp" />
+    <ClCompile Include="server\monitoring\GameMonitor.cpp" />
     <ClCompile Include="sqlite3.c">
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsC</CompileAs>
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">CompileAsC</CompileAs>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\core\Log.h" />
-    <ClInclude Include="src\core\Settings.h" />
-    <ClInclude Include="src\core\Stats.h" />
-    <ClInclude Include="src\core\ZoneNames.h" />
-    <ClInclude Include="src\database\SessionDatabase.h" />
-    <ClInclude Include="src\memory\MemoryReader.h" />
-    <ClInclude Include="src\memory\DS3StatsReader.h" />
-    <ClInclude Include="src\discord\DiscordPresence.h" />
-    <ClInclude Include="src\discord\DiscordLoop.h" />
-    <ClInclude Include="src\windows\BorderlessWindow.h" />
-    <ClInclude Include="src\windows\AutoStart.h" />
-    <ClInclude Include="src\api\Routes.h" />
-    <ClInclude Include="src\api\SSE.h" />
-    <ClInclude Include="src\monitoring\GameMonitor.h" />
+    <ClInclude Include="server\core\Log.h" />
+    <ClInclude Include="server\core\Settings.h" />
+    <ClInclude Include="server\core\Stats.h" />
+    <ClInclude Include="server\core\ZoneNames.h" />
+    <ClInclude Include="server\database\SessionDatabase.h" />
+    <ClInclude Include="server\memory\MemoryReader.h" />
+    <ClInclude Include="server\memory\DS3StatsReader.h" />
+    <ClInclude Include="server\discord\DiscordPresence.h" />
+    <ClInclude Include="server\discord\DiscordLoop.h" />
+    <ClInclude Include="server\windows\BorderlessWindow.h" />
+    <ClInclude Include="server\windows\AutoStart.h" />
+    <ClInclude Include="server\api\Routes.h" />
+    <ClInclude Include="server\api\SSE.h" />
+    <ClInclude Include="server\monitoring\GameMonitor.h" />
     <ClInclude Include="sqlite3.h" />
   </ItemGroup>
   <ItemGroup>
